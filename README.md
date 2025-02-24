@@ -75,10 +75,30 @@ pdf-analyzer/
 
 ## Environment Variables
 
-- `PORT`: Server port (default: 3000)
-- `GEMINI_API_KEY`: Google Gemini API key for AI functionality
-- `GEMINI_API_ENDPOINT`: Google Gemini API endpoint
+### Required Variables
+- `PORT`: Server port (default: 3004)
+- `GEMINI_API_KEY`: Your Gemini API key for authentication
+- `GEMINI_API_ENDPOINT`: The Gemini API endpoint URL (e.g., https://api.gemini.ai/v1.5/analyze)
 - `NODE_ENV`: Environment setting (development/production)
+
+### Local Setup
+Create a `.env` file in the root directory:
+```env
+# Server Configuration
+PORT=3004
+
+# Gemini API Configuration
+GEMINI_API_KEY=your_api_key_here
+GEMINI_API_ENDPOINT=https://api.gemini.ai/v1.5/analyze
+```
+
+### Vercel Deployment
+1. Go to your project settings in the Vercel dashboard
+2. Navigate to the Environment Variables section
+3. Add the required variables:
+   - `GEMINI_API_KEY`
+   - `GEMINI_API_ENDPOINT`
+4. Deploy your project to apply the changes
 
 ## Features
 
@@ -158,7 +178,8 @@ When a file is selected:
 5. Verify the JSON response includes:
    - Success status
    - Session ID
-   - Base64-encoded PDF data
+   - Summary of the PDF content
+   - Structured data extracted from the PDF
 
 ### Using cURL
 ```bash

@@ -1,6 +1,8 @@
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const axios = require('axios');
+require('dotenv').config();
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
@@ -61,21 +63,58 @@ module.exports = async (req, res) => {
         // Convert file buffer to base64
         const base64Pdf = req.file.buffer.toString('base64');
 
-        // Return success response
-        res.status(200).json({
-            success: true,
-            message: 'File successfully processed',
-            data: {
-                sessionId,
-                filename: req.file.originalname,
-                size: req.file.size,
-                mimeType: req.file.mimetype,
-                // Only return first 100 characters of base64 for verification
-                base64Preview: `${base64Pdf.substring(0, 100)}...`,
-                // Include full base64 string
-                base64: base64Pdf
-            }
-        });
+        // Validate environment variables
+        const apiEndpoint = process.env.GEMINI_API_ENDPOINT;
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (!apiEndpoint || !apiKey) {
+            throw {
+                status: 500,
+                message: 'Gemini API configuration is missing'
+            };
+        }
+
+        // Prepare request to Gemini API
+        const geminiPayload = {
+            prompt: 'Extract the summary and structured data from this PDF',
+            file: base64Pdf
+        };
+
+        try {
+            // Call Gemini API
+            const geminiResponse = await axios.post(apiEndpoint, geminiPayload, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            // Extract data from Gemini response
+            const { summary, structuredData } = geminiResponse.data;
+
+            // Optional: Store in Redis here if configured
+            // const redisKey = `analysis:${sessionId}`;
+            // await redis.setex(redisKey, 3600, JSON.stringify(geminiResponse.data));
+
+            // Return processed response
+            res.status(200).json({
+                success: true,
+                message: 'File successfully analyzed',
+                data: {
+                    sessionId,
+                    filename: req.file.originalname,
+                    size: req.file.size,
+                    summary,
+                    structuredData
+                }
+            });
+        } catch (geminiError) {
+            console.error('Gemini API Error:', geminiError.response?.data || geminiError.message);
+            throw {
+                status: 502,
+                message: 'Error processing PDF with Gemini API'
+            };
+        }
 
     } catch (error) {
         // Handle any errors

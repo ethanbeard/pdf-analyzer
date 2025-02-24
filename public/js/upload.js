@@ -109,11 +109,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(result.message || 'Upload failed');
                 }
 
-                // Show success message
+                // Show analysis results
                 fileDetails.innerHTML += `
                     <div class="mt-4 p-4 bg-green-50 text-green-700 rounded-lg">
-                        <p class="font-medium">File uploaded successfully!</p>
+                        <p class="font-medium">Analysis completed successfully!</p>
                         <p class="text-sm mt-1">Session ID: ${result.data.sessionId}</p>
+                        
+                        <div class="mt-4">
+                            <h3 class="font-medium mb-2">Summary</h3>
+                            <p class="text-sm">${result.data.summary}</p>
+                        </div>
+
+                        <div class="mt-4">
+                            <h3 class="font-medium mb-2">Structured Data</h3>
+                            <pre class="text-sm bg-white p-2 rounded overflow-auto max-h-60">${JSON.stringify(result.data.structuredData, null, 2)}</pre>
+                        </div>
                     </div>
                 `;
 
