@@ -89,7 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadButton.style.display = 'inline-flex';
 
         // Add click handler for upload button
-        uploadButton.onclick = async () => {
+        uploadButton.onclick = async (e) => {
+            e.preventDefault();
             try {
                 uploadButton.disabled = true;
                 uploadButton.textContent = 'Processing...';
