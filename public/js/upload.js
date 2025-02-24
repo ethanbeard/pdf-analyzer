@@ -75,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Show upload button
         uploadButton.classList.remove('hidden');
+        uploadButton.style.display = 'inline-flex';
     }
 
     function formatFileSize(bytes) {
