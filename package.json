@@ -1,0 +1,24 @@
+{
+  "name": "pdf-analyzer",
+  "version": "1.0.0",
+  "description": "A powerful PDF analysis tool using AI to extract and analyze PDF content",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["pdf", "analysis", "ai", "document-processing"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1",
+    "helmet": "^7.1.0",
+    "multer": "^1.4.5-lts.1",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
