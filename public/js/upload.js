@@ -56,12 +56,18 @@ document.addEventListener('DOMContentLoaded', () => {
         handleFile(file);
     }
 
-    function handleFile(file) {
+    async function handleFile(file) {
         if (!file) return;
         
         // Check if file is PDF
         if (file.type !== 'application/pdf') {
             alert('Please upload a PDF file');
+            return;
+        }
+
+        // Check file size (10MB limit)
+        if (file.size > 10 * 1024 * 1024) {
+            alert('File size must be less than 10MB');
             return;
         }
 
@@ -81,6 +87,51 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show upload button
         uploadButton.classList.remove('hidden');
         uploadButton.style.display = 'inline-flex';
+
+        // Add click handler for upload button
+        uploadButton.onclick = async () => {
+            try {
+                uploadButton.disabled = true;
+                uploadButton.textContent = 'Processing...';
+
+                const formData = new FormData();
+                formData.append('pdf', file);
+
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || 'Upload failed');
+                }
+
+                // Show success message
+                fileDetails.innerHTML += `
+                    <div class="mt-4 p-4 bg-green-50 text-green-700 rounded-lg">
+                        <p class="font-medium">File uploaded successfully!</p>
+                        <p class="text-sm mt-1">Session ID: ${result.data.sessionId}</p>
+                    </div>
+                `;
+
+                // Hide upload button after successful upload
+                uploadButton.style.display = 'none';
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                fileDetails.innerHTML += `
+                    <div class="mt-4 p-4 bg-red-50 text-red-700 rounded-lg">
+                        <p class="font-medium">Upload failed</p>
+                        <p class="text-sm mt-1">${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                uploadButton.disabled = false;
+                uploadButton.textContent = 'Analyze PDF';
+            }
+        };
     }
 
     function formatFileSize(bytes) {

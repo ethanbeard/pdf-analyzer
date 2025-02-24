@@ -116,5 +116,69 @@ When a file is selected:
 
 ## API Endpoints
 
+### Health Check
 - `GET /api/health`: Health check endpoint
-- More endpoints coming soon...
+  - Returns: `{ status: 'healthy', timestamp: '...' }`
+
+### PDF Analysis
+- `POST /api/analyze`: Upload and analyze a PDF file
+  - Content-Type: `multipart/form-data`
+  - Body:
+    - `pdf`: PDF file (required)
+  - Size Limit: 10MB
+  - Returns:
+    ```json
+    {
+      "success": true,
+      "message": "File successfully processed",
+      "data": {
+        "sessionId": "uuid-v4",
+        "filename": "example.pdf",
+        "size": 1234567,
+        "mimeType": "application/pdf",
+        "base64Preview": "...",
+        "base64": "full-base64-string"
+      }
+    }
+    ```
+
+## Testing the API
+
+### Using the Web Interface
+1. Visit the landing page
+2. Upload a PDF file using drag-and-drop or file picker
+3. Click "Analyze PDF"
+4. Check the response in the UI
+
+### Using Postman
+1. Create a new POST request to `/api/analyze`
+2. Set the request type to `multipart/form-data`
+3. Add a field named `pdf` and select a PDF file
+4. Send the request
+5. Verify the JSON response includes:
+   - Success status
+   - Session ID
+   - Base64-encoded PDF data
+
+### Using cURL
+```bash
+curl -X POST \
+  -F "pdf=@/path/to/your/file.pdf" \
+  http://localhost:3004/api/analyze
+```
+
+### Error Responses
+- File too large (>10MB):
+  ```json
+  {
+    "success": false,
+    "message": "File too large"
+  }
+  ```
+- Invalid file type:
+  ```json
+  {
+    "success": false,
+    "message": "Only PDF files are allowed"
+  }
+  ```
