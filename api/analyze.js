@@ -9,7 +9,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
+        fileSize: 4 * 1024 * 1024, // 4MB limit (Vercel's limit)
     },
     fileFilter: (req, file, cb) => {
         // Check file type
