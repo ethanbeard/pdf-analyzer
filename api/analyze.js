@@ -4,14 +4,20 @@ const path = require('path');
 const axios = require('axios');
 require('dotenv').config();
 
-// Helper function to parse markdown-style tables
-function parseMarkdownTable(text) {
+// Helper function to extract summary and structured data
+function parseResponse(text) {
+    // Extract summary (text between '**Summary:**' and '**Structured Data:**')
+    const summaryMatch = text.match(/\*\*Summary:\*\*\s+([^*]+)\s+\*\*Structured Data:\*\*/i);
+    const summary = summaryMatch ? summaryMatch[1].trim() : '';
+
     // Find the table in the text
-    const tableMatch = text.match(/\|([^\n]+\|)+\n\|([-:\|\s]+\|)+\n((\|[^\n]+\|)+\n?)+/);
-    if (!tableMatch) return { headers: [], rows: [] };
+    const tableMatch = text.match(/\|([^\n]+\|)+\n\s*\|([-:\|\s]+\|)+\n((\|[^\n]+\|)+\n?)+/);
+    if (!tableMatch) return { summary, headers: [], rows: [] };
 
     // Split into lines and clean up
-    const lines = tableMatch[0].split('\n').filter(line => line.trim());
+    const lines = tableMatch[0].split('\n')
+        .filter(line => line.trim())
+        .map(line => line.trim());
     
     // Parse headers
     const headers = lines[0]
@@ -19,19 +25,33 @@ function parseMarkdownTable(text) {
         .filter(cell => cell.trim())
         .map(cell => cell.trim());
 
-    // Skip the separator line (line[1])
-    
-    // Parse rows
+    // Parse rows (skip header and separator lines)
     const rows = lines.slice(2)
         .filter(line => line.trim())
         .map(line => 
             line
                 .split('|')
                 .filter(cell => cell.trim())
-                .map(cell => cell.trim())
+                .map(cell => {
+                    // Clean up the cell value
+                    let value = cell.trim();
+                    // Remove 'USD' prefix from prices
+                    if (value.startsWith('USD')) {
+                        value = value.replace('USD', '').trim();
+                    }
+                    // Remove dollar sign and convert to number for price
+                    if (value.startsWith('$')) {
+                        value = value.replace('$', '').replace(',', '');
+                        // Handle 'each' case
+                        if (value.includes('(each)')) {
+                            value = value.replace('(each)', '').trim();
+                        }
+                    }
+                    return value;
+                })
         );
 
-    return { headers, rows };
+    return { summary, headers, rows };
 }
 
 // Configure multer for memory storage
@@ -161,40 +181,60 @@ Please ensure all tables are properly structured with consistent columns and dat
             const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
             console.log('Extracted text:', responseText);
 
-            // Parse the response text and extract tables
-            const tableData = parseMarkdownTable(responseText);
+            // Parse the response text and extract data
+            const parsedData = parseResponse(responseText);
             
-            // Calculate pricing
+            // Calculate total value of artwork
+            let totalArtworkValue = 0;
+            parsedData.rows.forEach(row => {
+                // Find the price column index
+                const priceIndex = parsedData.headers.findIndex(h => h.toLowerCase().includes('price'));
+                if (priceIndex !== -1) {
+                    const price = parseFloat(row[priceIndex]);
+                    if (!isNaN(price)) {
+                        totalArtworkValue += price;
+                    }
+                }
+            });
+
+            // Calculate analysis pricing
             const baseFee = 1.00;
             const perRecordFee = 0.10;
-            const numRecords = tableData.rows.length;
-            const totalPrice = baseFee + (numRecords * perRecordFee);
+            const numRecords = parsedData.rows.length;
+            const analysisPrice = baseFee + (numRecords * perRecordFee);
 
             // Create the structured response
-            const summary = 'Analysis complete';
             const structuredData = {
                 tables: [{
                     title: 'Artwork Inventory',
                     description: 'Detailed list of artworks with their specifications and pricing',
-                    headers: tableData.headers,
-                    rows: tableData.rows,
+                    headers: parsedData.headers,
+                    rows: parsedData.rows.map(row => 
+                        row.map((cell, i) => 
+                            // Format price columns with dollar sign and commas
+                            parsedData.headers[i].toLowerCase().includes('price') 
+                                ? `$${parseFloat(cell).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                                : cell
+                        )
+                    ),
                     location: 'Document body'
                 }],
                 otherStructuredData: {
                     key_figures: {
-                        description: 'Pricing Information',
+                        description: 'Analysis Summary',
                         values: {
-                            'Number of Records': numRecords.toString(),
-                            'Base Fee': `$${baseFee.toFixed(2)}`,
+                            'Total Artworks': numRecords.toString(),
+                            'Total Artwork Value': `$${totalArtworkValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                            'Analysis Base Fee': `$${baseFee.toFixed(2)}`,
                             'Per Record Fee': `$${perRecordFee.toFixed(2)}`,
-                            'Total Price': `$${totalPrice.toFixed(2)}`
+                            'Total Analysis Cost': `$${analysisPrice.toFixed(2)}`
                         }
                     },
                     lists: []
                 }
             };
 
-            console.log('Processed table data:', structuredData);
+            console.log('Processed data:', structuredData);
 
             // Optional: Store in Redis here if configured
             // const redisKey = `analysis:${sessionId}`;
