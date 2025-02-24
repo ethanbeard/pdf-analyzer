@@ -80,6 +80,40 @@ pdf-analyzer/
 - `GEMINI_API_ENDPOINT`: Google Gemini API endpoint
 - `NODE_ENV`: Environment setting (development/production)
 
+## Features
+
+### File Upload
+The application supports PDF file upload through:
+- Drag and drop interface
+- Traditional file picker
+
+When a file is selected:
+1. The file name and size are displayed
+2. Only PDF files are accepted
+3. An "Analyze PDF" button appears
+
+### Pricing
+- Base fee: $1.00 per document
+- Per record: $0.10
+
+## Testing File Upload
+
+1. **Local Testing**
+   - Start the development server: `npm run dev`
+   - Open http://localhost:3004 in your browser
+   - Try uploading a PDF file by:
+     a. Dragging and dropping a PDF onto the upload zone
+     b. Clicking the upload zone and selecting a PDF
+   - Verify that:
+     - The file name and size are displayed
+     - Non-PDF files are rejected
+     - The "Analyze PDF" button appears after selection
+
+2. **Production Testing**
+   - Visit the deployed site
+   - Perform the same upload tests as above
+   - Verify the upload interface is responsive on mobile devices
+
 ## API Endpoints
 
 - `GET /api/health`: Health check endpoint

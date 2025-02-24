@@ -12,11 +12,44 @@
         <div class="container">
             <h1>PDF Analyzer</h1>
             <p>Transform your PDFs into actionable insights using advanced AI analysis</p>
-            <div class="status-badge">Coming Soon</div>
         </div>
     </div>
 
     <main class="container">
+        <!-- Upload Section -->
+        <div class="upload-section feature-card" style="margin-bottom: 2rem;">
+            <h2>Upload Your PDF</h2>
+            <div id="drop-zone" class="upload-zone">
+                <input type="file" id="file-input" accept=".pdf" class="hidden" />
+                <div class="upload-instructions">
+                    <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p class="mb-2">Drag and drop your PDF file here</p>
+                    <p class="text-sm text-gray-500">or click to select a file</p>
+                </div>
+                <div id="file-details" class="mt-4"></div>
+                <button id="upload-button" class="btn btn-primary mt-4 hidden">
+                    Analyze PDF
+                </button>
+            </div>
+
+            <!-- Pricing Information -->
+            <div class="pricing mt-4">
+                <h3 class="pricing-title">Pricing</h3>
+                <div class="pricing-item">
+                    <span>Base Fee</span>
+                    <span>$1.00</span>
+                </div>
+                <div class="pricing-item">
+                    <span>Per Record</span>
+                    <span>$0.10</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
         <div class="features">
             <div class="feature-card">
                 <h2>Powered by Google Gemini 1.5 Flash</h2>
@@ -32,12 +65,9 @@
                     <li>Fast and accurate processing</li>
                 </ul>
             </div>
-
-            <div class="feature-card">
-                <h2>Development Status</h2>
-                <p>We're currently building PDF Analyzer to deliver a powerful yet simple document analysis experience. Check back soon for updates!</p>
-            </div>
         </div>
     </main>
+
+    <script src="/js/upload.js"></script>
 </body>
 </html>
