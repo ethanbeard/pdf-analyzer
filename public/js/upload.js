@@ -125,10 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p class="text-sm">${result.data.summary || 'No summary available'}</p>
                         </div>
 
-                        <div class="mt-4">
-                            <h3 class="font-medium mb-2">Structured Data</h3>
-                            <pre class="text-sm bg-white p-2 rounded overflow-auto max-h-60">${JSON.stringify(result.data.structuredData || {}, null, 2)}</pre>
-                        </div>
+                        ${renderTables(result.data.structuredData.tables)}
+                        ${renderOtherStructuredData(result.data.structuredData.otherStructuredData)}
                     </div>
                 `;
 
@@ -178,6 +176,108 @@ document.addEventListener('DOMContentLoaded', () => {
                 uploadButton.textContent = 'Analyze PDF';
             }
         };
+    }
+
+    // Render tables
+    function renderTables(tables) {
+        if (!tables || tables.length === 0) {
+            return `
+                <div class="mt-4">
+                    <h3 class="font-medium mb-2">Tables</h3>
+                    <p class="text-sm text-gray-500">No tables found in the document.</p>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="mt-4">
+                <h3 class="font-medium mb-2">Tables</h3>
+                ${tables.map((table, index) => `
+                    <div class="mb-4 bg-white p-4 rounded-lg border">
+                        <h4 class="font-medium text-lg">${table.title || `Table ${index + 1}`}</h4>
+                        ${table.description ? `<p class="text-sm text-gray-600 mb-2">${table.description}</p>` : ''}
+                        ${table.location ? `<p class="text-xs text-gray-500 mb-2">Location: ${table.location}</p>` : ''}
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        ${table.headers.map(header => `
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                ${header}
+                                            </th>
+                                        `).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${table.rows.map(row => `
+                                        <tr>
+                                            ${row.map(cell => `
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    ${cell}
+                                                </td>
+                                            `).join('')}
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    // Render other structured data
+    function renderOtherStructuredData(data) {
+        if (!data) return '';
+
+        let sections = [];
+
+        // Render key figures
+        if (data.key_figures && Object.keys(data.key_figures.values || {}).length > 0) {
+            sections.push(`
+                <div class="mb-4">
+                    <h4 class="font-medium mb-2">Key Figures</h4>
+                    ${data.key_figures.description ? `<p class="text-sm text-gray-600 mb-2">${data.key_figures.description}</p>` : ''}
+                    <div class="grid grid-cols-2 gap-4">
+                        ${Object.entries(data.key_figures.values).map(([key, value]) => `
+                            <div class="bg-white p-3 rounded border">
+                                <div class="text-sm text-gray-500">${key}</div>
+                                <div class="font-medium">${value}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `);
+        }
+
+        // Render lists
+        if (data.lists && data.lists.length > 0) {
+            sections.push(`
+                <div class="mb-4">
+                    <h4 class="font-medium mb-2">Lists</h4>
+                    ${data.lists.map(list => `
+                        <div class="bg-white p-4 rounded border mb-2">
+                            ${list.title ? `<h5 class="font-medium mb-2">${list.title}</h5>` : ''}
+                            <ul class="list-disc list-inside">
+                                ${list.items.map(item => `
+                                    <li class="text-sm text-gray-600">${item}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `).join('')}
+                </div>
+            `);
+        }
+
+        if (sections.length === 0) return '';
+
+        return `
+            <div class="mt-4">
+                <h3 class="font-medium mb-2">Other Structured Data</h3>
+                ${sections.join('')}
+            </div>
+        `;
     }
 
     // Create logs container

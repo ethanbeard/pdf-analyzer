@@ -79,7 +79,33 @@ module.exports = async (req, res) => {
         const geminiPayload = {
             contents: [{
                 parts: [
-                    { text: 'Extract the summary and structured data from this PDF' },
+                    { text: `Please analyze this PDF and return a JSON response with the following structure:
+{
+    "summary": "A brief summary of the document",
+    "tables": [
+        {
+            "title": "Title or caption of the table",
+            "description": "A brief description of what this table represents",
+            "headers": ["Column1", "Column2", ...],
+            "rows": [["value1", "value2", ...], ...],
+            "location": "Page or section where this table appears"
+        }
+    ],
+    "otherStructuredData": {
+        "key_figures": {
+            "description": "Any important numerical data or statistics",
+            "values": {"label1": "value1", ...}
+        },
+        "lists": [
+            {
+                "title": "Title of the list",
+                "items": ["item1", "item2", ...]
+            }
+        ]
+    }
+}
+
+Please ensure all tables are properly structured with consistent columns and data types. If no tables are found, return an empty array for 'tables'.` },
                     { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                 ]
             }],
@@ -105,20 +131,45 @@ module.exports = async (req, res) => {
             const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
             console.log('Extracted text:', responseText);
 
-            // Parse the response text to extract summary and structured data
-            let summary = '';
-            let structuredData = {};
+            // Parse the response text
+            let parsedResponse = {};
             
             try {
-                // Attempt to parse the response as JSON first
-                const parsedData = JSON.parse(responseText);
-                summary = parsedData.summary;
-                structuredData = parsedData.structuredData;
+                parsedResponse = JSON.parse(responseText);
             } catch (e) {
-                // If not JSON, treat the entire response as the summary
-                summary = responseText;
-                structuredData = { note: 'No structured data available' };
+                console.error('Error parsing Gemini response:', e);
+                parsedResponse = {
+                    summary: responseText,
+                    tables: [],
+                    otherStructuredData: {
+                        key_figures: { values: {} },
+                        lists: []
+                    }
+                };
             }
+
+            // Process tables if they exist
+            const tables = parsedResponse.tables || [];
+            for (let table of tables) {
+                // Validate table structure
+                if (table.headers && table.rows) {
+                    // Ensure all rows have the same number of columns as headers
+                    table.rows = table.rows.map(row => {
+                        while (row.length < table.headers.length) row.push('');
+                        return row.slice(0, table.headers.length);
+                    });
+                }
+            }
+
+            // Extract the processed data
+            const summary = parsedResponse.summary || '';
+            const structuredData = {
+                tables,
+                otherStructuredData: parsedResponse.otherStructuredData || {
+                    key_figures: { values: {} },
+                    lists: []
+                }
+            };
 
             // Optional: Store in Redis here if configured
             // const redisKey = `analysis:${sessionId}`;
