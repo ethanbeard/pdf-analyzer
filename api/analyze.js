@@ -63,28 +63,36 @@ module.exports = async (req, res) => {
         // Convert file buffer to base64
         const base64Pdf = req.file.buffer.toString('base64');
 
-        // Validate environment variables
-        const apiEndpoint = process.env.GEMINI_API_ENDPOINT;
+        // Validate API key
         const apiKey = process.env.GEMINI_API_KEY;
 
-        if (!apiEndpoint || !apiKey) {
+        if (!apiKey) {
             throw {
                 status: 500,
-                message: 'Gemini API configuration is missing'
+                message: 'Gemini API key is missing'
             };
         }
 
         // Prepare request to Gemini API
+        const apiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+        
         const geminiPayload = {
-            prompt: 'Extract the summary and structured data from this PDF',
-            file: base64Pdf
+            contents: [{
+                parts: [
+                    { text: 'Extract the summary and structured data from this PDF' },
+                    { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
+                ]
+            }],
+            generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: 1024
+            }
         };
 
         try {
             // Call Gemini API
-            const geminiResponse = await axios.post(apiEndpoint, geminiPayload, {
+            const geminiResponse = await axios.post(`${apiEndpoint}?key=${apiKey}`, geminiPayload, {
                 headers: {
-                    'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json'
                 }
             });

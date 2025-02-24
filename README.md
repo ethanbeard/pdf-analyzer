@@ -77,8 +77,7 @@ pdf-analyzer/
 
 ### Required Variables
 - `PORT`: Server port (default: 3004)
-- `GEMINI_API_KEY`: Your Gemini API key for authentication
-- `GEMINI_API_ENDPOINT`: The Gemini API endpoint URL (e.g., https://api.gemini.ai/v1.5/analyze)
+- `GEMINI_API_KEY`: Your Gemini API key (get it from [Google AI Studio](https://makersuite.google.com/app/apikey))
 - `NODE_ENV`: Environment setting (development/production)
 
 ### Local Setup
@@ -88,8 +87,7 @@ Create a `.env` file in the root directory:
 PORT=3004
 
 # Gemini API Configuration
-GEMINI_API_KEY=your_api_key_here
-GEMINI_API_ENDPOINT=https://api.gemini.ai/v1.5/analyze
+GEMINI_API_KEY=your-api-key
 ```
 
 ### Vercel Deployment
