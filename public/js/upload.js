@@ -117,15 +117,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         <div class="mt-4">
                             <h3 class="font-medium mb-2">Summary</h3>
-                            <p class="text-sm">${result.data.summary}</p>
+                            <p class="text-sm">${result.data.summary || 'No summary available'}</p>
                         </div>
 
                         <div class="mt-4">
                             <h3 class="font-medium mb-2">Structured Data</h3>
-                            <pre class="text-sm bg-white p-2 rounded overflow-auto max-h-60">${JSON.stringify(result.data.structuredData, null, 2)}</pre>
+                            <pre class="text-sm bg-white p-2 rounded overflow-auto max-h-60">${JSON.stringify(result.data.structuredData || {}, null, 2)}</pre>
                         </div>
                     </div>
                 `;
+
+                // Display debug logs at the bottom if they exist
+                if (result.data.logs) {
+                    const logsDiv = document.getElementById('debug-logs') || createLogsDiv();
+                    logsDiv.innerHTML = `
+                        <div class="mt-8 p-4 bg-gray-50 rounded-lg">
+                            <h3 class="text-lg font-medium mb-4">Debug Logs</h3>
+                            
+                            <div class="mb-4">
+                                <h4 class="font-medium mb-2">Request Payload:</h4>
+                                <pre class="text-sm bg-white p-3 rounded overflow-auto max-h-60 border">${JSON.stringify(result.data.logs.request, null, 2)}</pre>
+                            </div>
+
+                            <div>
+                                <h4 class="font-medium mb-2">API Response:</h4>
+                                <pre class="text-sm bg-white p-3 rounded overflow-auto max-h-60 border">${JSON.stringify(result.data.logs.response, null, 2)}</pre>
+                            </div>
+                        </div>
+                    `;
+                }
 
                 // Hide upload button after successful upload
                 uploadButton.style.display = 'none';
@@ -143,6 +163,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 uploadButton.textContent = 'Analyze PDF';
             }
         };
+    }
+
+    // Create logs container
+    function createLogsDiv() {
+        const logsDiv = document.createElement('div');
+        logsDiv.id = 'debug-logs';
+        document.body.appendChild(logsDiv);
+        return logsDiv;
     }
 
     function formatFileSize(bytes) {

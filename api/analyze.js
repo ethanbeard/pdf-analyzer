@@ -90,6 +90,8 @@ module.exports = async (req, res) => {
         };
 
         try {
+            console.log('Sending request to Gemini API:', JSON.stringify(geminiPayload, null, 2));
+
             // Call Gemini API
             const geminiResponse = await axios.post(`${apiEndpoint}?key=${apiKey}`, geminiPayload, {
                 headers: {
@@ -97,12 +99,30 @@ module.exports = async (req, res) => {
                 }
             });
 
-            // Extract data from Gemini response
-            const { summary, structuredData } = geminiResponse.data;
+            console.log('Received response from Gemini API:', JSON.stringify(geminiResponse.data, null, 2));
+
+            // Extract text from the response
+            const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
+            console.log('Extracted text:', responseText);
+
+            // Parse the response text to extract summary and structured data
+            let summary = '';
+            let structuredData = {};
+            
+            try {
+                // Attempt to parse the response as JSON first
+                const parsedData = JSON.parse(responseText);
+                summary = parsedData.summary;
+                structuredData = parsedData.structuredData;
+            } catch (e) {
+                // If not JSON, treat the entire response as the summary
+                summary = responseText;
+                structuredData = { note: 'No structured data available' };
+            }
 
             // Optional: Store in Redis here if configured
             // const redisKey = `analysis:${sessionId}`;
-            // await redis.setex(redisKey, 3600, JSON.stringify(geminiResponse.data));
+            // await redis.setex(redisKey, 3600, JSON.stringify({ summary, structuredData }));
 
             // Return processed response
             res.status(200).json({
@@ -113,7 +133,11 @@ module.exports = async (req, res) => {
                     filename: req.file.originalname,
                     size: req.file.size,
                     summary,
-                    structuredData
+                    structuredData,
+                    logs: {
+                        request: geminiPayload,
+                        response: geminiResponse.data
+                    }
                 }
             });
         } catch (geminiError) {
