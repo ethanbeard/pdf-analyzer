@@ -25,6 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle file input change
     fileInput.addEventListener('change', handleFileSelect, false);
 
+    // Handle click on drop zone
+    dropZone.addEventListener('click', () => {
+        fileInput.click();
+    });
+
     function preventDefaults(e) {
         e.preventDefault();
         e.stopPropagation();
