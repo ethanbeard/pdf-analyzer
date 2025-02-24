@@ -4,6 +4,36 @@ const path = require('path');
 const axios = require('axios');
 require('dotenv').config();
 
+// Helper function to parse markdown-style tables
+function parseMarkdownTable(text) {
+    // Find the table in the text
+    const tableMatch = text.match(/\|([^\n]+\|)+\n\|([-:\|\s]+\|)+\n((\|[^\n]+\|)+\n?)+/);
+    if (!tableMatch) return { headers: [], rows: [] };
+
+    // Split into lines and clean up
+    const lines = tableMatch[0].split('\n').filter(line => line.trim());
+    
+    // Parse headers
+    const headers = lines[0]
+        .split('|')
+        .filter(cell => cell.trim())
+        .map(cell => cell.trim());
+
+    // Skip the separator line (line[1])
+    
+    // Parse rows
+    const rows = lines.slice(2)
+        .filter(line => line.trim())
+        .map(line => 
+            line
+                .split('|')
+                .filter(cell => cell.trim())
+                .map(cell => cell.trim())
+        );
+
+    return { headers, rows };
+}
+
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -131,45 +161,40 @@ Please ensure all tables are properly structured with consistent columns and dat
             const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
             console.log('Extracted text:', responseText);
 
-            // Parse the response text
-            let parsedResponse = {};
+            // Parse the response text and extract tables
+            const tableData = parseMarkdownTable(responseText);
             
-            try {
-                parsedResponse = JSON.parse(responseText);
-            } catch (e) {
-                console.error('Error parsing Gemini response:', e);
-                parsedResponse = {
-                    summary: responseText,
-                    tables: [],
-                    otherStructuredData: {
-                        key_figures: { values: {} },
-                        lists: []
-                    }
-                };
-            }
+            // Calculate pricing
+            const baseFee = 1.00;
+            const perRecordFee = 0.10;
+            const numRecords = tableData.rows.length;
+            const totalPrice = baseFee + (numRecords * perRecordFee);
 
-            // Process tables if they exist
-            const tables = parsedResponse.tables || [];
-            for (let table of tables) {
-                // Validate table structure
-                if (table.headers && table.rows) {
-                    // Ensure all rows have the same number of columns as headers
-                    table.rows = table.rows.map(row => {
-                        while (row.length < table.headers.length) row.push('');
-                        return row.slice(0, table.headers.length);
-                    });
-                }
-            }
-
-            // Extract the processed data
-            const summary = parsedResponse.summary || '';
+            // Create the structured response
+            const summary = 'Analysis complete';
             const structuredData = {
-                tables,
-                otherStructuredData: parsedResponse.otherStructuredData || {
-                    key_figures: { values: {} },
+                tables: [{
+                    title: 'Artwork Inventory',
+                    description: 'Detailed list of artworks with their specifications and pricing',
+                    headers: tableData.headers,
+                    rows: tableData.rows,
+                    location: 'Document body'
+                }],
+                otherStructuredData: {
+                    key_figures: {
+                        description: 'Pricing Information',
+                        values: {
+                            'Number of Records': numRecords.toString(),
+                            'Base Fee': `$${baseFee.toFixed(2)}`,
+                            'Per Record Fee': `$${perRecordFee.toFixed(2)}`,
+                            'Total Price': `$${totalPrice.toFixed(2)}`
+                        }
+                    },
                     lists: []
                 }
             };
+
+            console.log('Processed table data:', structuredData);
 
             // Optional: Store in Redis here if configured
             // const redisKey = `analysis:${sessionId}`;
