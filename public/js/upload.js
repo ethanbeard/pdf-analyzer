@@ -65,9 +65,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Check file size (10MB limit)
-        if (file.size > 10 * 1024 * 1024) {
-            alert('File size must be less than 10MB');
+        // Check file size (4MB limit for Vercel)
+        if (file.size > 4 * 1024 * 1024) {
+            fileDetails.innerHTML = `
+                <div class="mt-4 p-4 bg-red-50 text-red-700 rounded-lg">
+                    <p class="font-medium">File too large</p>
+                    <p class="text-sm mt-1">Please upload a PDF smaller than 4MB for Vercel deployments.</p>
+                </div>
+            `;
             return;
         }
 
@@ -152,10 +157,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (error) {
                 console.error('Upload error:', error);
+                let errorMessage = error.message;
+
+                // Handle specific error cases
+                if (error.message.includes('413')) {
+                    errorMessage = 'File is too large. Please try a smaller PDF (max 4MB for Vercel deployments).';
+                } else if (error.message.includes('SyntaxError')) {
+                    errorMessage = 'Error parsing API response. This might be due to a timeout or server error.';
+                }
+
                 fileDetails.innerHTML += `
                     <div class="mt-4 p-4 bg-red-50 text-red-700 rounded-lg">
                         <p class="font-medium">Upload failed</p>
-                        <p class="text-sm mt-1">${error.message}</p>
+                        <p class="text-sm mt-1">${errorMessage}</p>
+                        ${error.response ? `<pre class="mt-2 text-xs bg-white p-2 rounded">${JSON.stringify(error.response.data, null, 2)}</pre>` : ''}
                     </div>
                 `;
             } finally {

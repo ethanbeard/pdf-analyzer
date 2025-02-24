@@ -9,9 +9,20 @@
     { 
       "src": "/api/analyze",
       "methods": ["POST"],
-      "dest": "/api/analyze.js"
+      "dest": "/api/analyze.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
     },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/index.js" }
-  ]
+  ],
+  "functions": {
+    "api/analyze.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
 }
