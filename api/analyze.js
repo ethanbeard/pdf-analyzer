@@ -117,8 +117,24 @@ module.exports = async (req, res) => {
             'price'
         ];
 
-        const geminiPayload = {
+        // First extract raw data
+        const extractionPayload = {
             contents: [{
+                role: "system",
+                parts: [{ text: `You are a data extraction system. Extract artwork information from the PDF in this exact format (no other text):
+
+TITLE: <title>
+ARTIST: <artist>
+YEAR: <year>
+MEDIUM: <medium>
+DIMENSIONS_UNFRAMED: <dimensions>
+DIMENSIONS_FRAMED: <dimensions or NONE>
+EDITION: <edition or NONE>
+INVENTORY: <inventory number>
+PRICE: <price without $ or ,>
+---
+` }]
+            }, {
                 role: "system",
                 parts: [{ text: `You are a JSON extraction API. You must output ONLY valid JSON.
 Do not include ANY other text, markdown, or formatting in your response.
@@ -126,34 +142,14 @@ Your response must start with { and end with } and be parseable by JSON.parse().
 ` }]
             }, {
                 role: "user",
-                parts: [{ text: `Return ONLY this JSON structure with no other text:
-{
-  "summary": string,  // Brief catalog summary
-  "artworks": [{
-    "title": string,         // e.g. "Untitled (Block party)"
-    "artist": string,        // Always "Sadie Barnette"
-    "year": string,         // e.g. "2018"
-    "medium": string,       // e.g. "Archival pigment print"
-    "dimensions_unframed": string,  // e.g. "40.25 x 60 in."
-    "dimensions_framed": string,    // e.g. "41 x 60.25 in."
-    "edition": string|null,  // e.g. "1" or null
-    "inventory_number": string,     // e.g. "SB127"
-    "price": string         // e.g. "15000.00" (no $ or ,)
-  }],
-  "metadata": {
-    "total_artworks": number,
-    "fields": ["title", "artist", "year", "medium", "dimensions_unframed", "dimensions_framed", "edition", "inventory_number", "price"]
-  }
-}
-
-Rules:
-1. Output ONLY valid JSON - no other text
-2. Start with { and end with }
-3. Use exact field names shown
-4. Remove $ and , from prices
-5. Use null for missing values
-
-Process this PDF:` },
+                parts: [{ text: `Extract all artwork information from this PDF. Follow these rules:
+1. Use the exact format shown in the system message
+2. Include every artwork found
+3. Remove $ and , from prices
+4. Use NONE for missing values
+5. Start each artwork with TITLE: and end with ---
+6. Include nothing else in your response
+` },
                     { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                 ]
             }],
@@ -197,66 +193,90 @@ Process this PDF:` },
 
             try {
                 // Extract text from the response
-                const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
-                console.log('Raw response text:', responseText);
+                const rawText = geminiResponse.data.candidates[0].content.parts[0].text;
+                console.log('Raw extraction text:', rawText);
 
-                // Remove any non-JSON content
-                const jsonMatch = responseText.match(/^\s*\{[\s\S]*\}\s*$/);
-                if (!jsonMatch) {
-                    throw new Error('Response contains non-JSON content');
-                }
+                // Split into artwork entries
+                const artworks = rawText.split('---\n').filter(entry => entry.trim());
 
-                // Try to parse the JSON
-                const parsedData = JSON.parse(jsonMatch[0]);
-                
-                // Validate required fields
-                if (typeof parsedData.summary !== 'string') {
-                    throw new Error('Summary must be a string');
-                }
-                if (!Array.isArray(parsedData.artworks)) {
-                    throw new Error('Artworks must be an array');
-                }
-                if (!parsedData.metadata || typeof parsedData.metadata !== 'object') {
-                    throw new Error('Metadata must be an object');
-                }
+                // Parse each artwork entry
+                const parsedArtworks = artworks.map(entry => {
+                    const lines = entry.trim().split('\n');
+                    const artwork = {};
 
-                // Validate metadata
-                if (!Array.isArray(parsedData.metadata.fields)) {
-                    throw new Error('Metadata fields must be an array');
-                }
-                if (typeof parsedData.metadata.total_artworks !== 'number') {
-                    throw new Error('Total artworks must be a number');
-                }
-
-                // Validate each artwork has required fields
-                parsedData.artworks = parsedData.artworks.map((artwork, index) => {
-                    // Validate all required fields exist
-                    for (const field of expectedFields) {
-                        if (!(field in artwork)) {
-                            throw new Error(`Artwork ${index} missing required field: ${field}`);
+                    lines.forEach(line => {
+                        const [key, ...valueParts] = line.split(': ');
+                        const value = valueParts.join(': ').trim();
+                        
+                        switch(key) {
+                            case 'TITLE':
+                                artwork.title = value;
+                                break;
+                            case 'ARTIST':
+                                artwork.artist = value;
+                                break;
+                            case 'YEAR':
+                                artwork.year = value;
+                                break;
+                            case 'MEDIUM':
+                                artwork.medium = value;
+                                break;
+                            case 'DIMENSIONS_UNFRAMED':
+                                artwork.dimensions_unframed = value;
+                                break;
+                            case 'DIMENSIONS_FRAMED':
+                                artwork.dimensions_framed = value === 'NONE' ? null : value;
+                                break;
+                            case 'EDITION':
+                                artwork.edition = value === 'NONE' ? null : value;
+                                break;
+                            case 'INVENTORY':
+                                artwork.inventory_number = value;
+                                break;
+                            case 'PRICE':
+                                artwork.price = value.replace(/[$,]/g, '');
+                                break;
                         }
-                    }
+                    });
 
-                    // Clean and validate fields
-                    return {
-                        title: String(artwork.title || ''),
-                        artist: String(artwork.artist || 'Sadie Barnette'),
-                        year: String(artwork.year || ''),
-                        medium: String(artwork.medium || ''),
-                        dimensions_unframed: String(artwork.dimensions_unframed || ''),
-                        dimensions_framed: String(artwork.dimensions_framed || ''),
-                        edition: artwork.edition === null ? null : String(artwork.edition),
-                        inventory_number: String(artwork.inventory_number || ''),
-                        price: artwork.price ? String(artwork.price).replace(/[$,]/g, '') : null
-                    };
+                    return artwork;
                 });
 
-                // Update total artworks count
-                parsedData.metadata.total_artworks = parsedData.artworks.length;
-                parsedData.metadata.fields = expectedFields;
+                // Now get a summary
+                const summaryPayload = {
+                    contents: [{
+                        role: "user",
+                        parts: [{ text: `Write a brief 1-2 sentence summary of this art catalog, focusing on the types of artwork and materials used. Be concise and factual:` },
+                            { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
+                        ]
+                    }],
+                    generationConfig: {
+                        temperature: 0,
+                        maxOutputTokens: 150,
+                        topK: 1,
+                        topP: 0
+                    }
+                };
 
-                console.log('Successfully processed data:', parsedData);
-                return parsedData;
+                const summaryResponse = await axios.post(`${apiEndpoint}?key=${apiKey}`, summaryPayload, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 30000
+                });
+
+                const summary = summaryResponse.data.candidates[0].content.parts[0].text;
+
+                // Construct final response
+                const structuredData = {
+                    summary: summary,
+                    artworks: parsedArtworks,
+                    metadata: {
+                        total_artworks: parsedArtworks.length,
+                        fields: expectedFields
+                    }
+                };
+
+                console.log('Successfully processed data:', structuredData);
+                return structuredData;
 
             } catch (error) {
                 console.error('Error processing response:', error.message);
