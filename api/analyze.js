@@ -70,6 +70,9 @@ const handleUpload = (req, res) => {
 
 // Main handler function
 module.exports = async (req, res) => {
+    // Enable response streaming
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     try {
         // Handle the file upload
         await handleUpload(req, res);
@@ -141,12 +144,26 @@ Now process this PDF and return a JSON object:` },
         try {
             console.log('Sending request to Gemini API:', JSON.stringify(geminiPayload, null, 2));
 
-            // Call Gemini API
+            // Call Gemini API with timeout and better error handling
             const geminiResponse = await axios.post(`${apiEndpoint}?key=${apiKey}`, geminiPayload, {
                 headers: {
                     'Content-Type': 'application/json'
+                },
+                timeout: 45000, // 45 second timeout
+                maxBodyLength: 20 * 1024 * 1024, // 20MB max
+                validateStatus: status => status < 500 // Only reject on 5xx errors
+            }).catch(error => {
+                console.error('Gemini API error:', error.message);
+                if (error.response) {
+                    console.error('Gemini API response:', error.response.data);
                 }
+                throw new Error(`Gemini API error: ${error.message}`);
             });
+
+            if (!geminiResponse.data || !geminiResponse.data.candidates || !geminiResponse.data.candidates[0]) {
+                console.error('Invalid Gemini response structure:', geminiResponse.data);
+                throw new Error('Invalid response from Gemini API');
+            }
 
             console.log('Received response from Gemini API:', JSON.stringify(geminiResponse.data, null, 2));
 

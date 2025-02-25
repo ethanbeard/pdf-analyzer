@@ -103,15 +103,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 const formData = new FormData();
                 formData.append('pdf', file);
 
-                const response = await fetch('/api/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 50000); // 50 second timeout
 
-                const result = await response.json();
+                try {
+                    const response = await fetch('/api/analyze', {
+                        method: 'POST',
+                        body: formData,
+                        signal: controller.signal
+                    });
 
-                if (!response.ok) {
-                    throw new Error(result.message || 'Upload failed');
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        let errorMessage = 'Upload failed';
+                        try {
+                            const errorJson = JSON.parse(errorText);
+                            errorMessage = errorJson.message || errorMessage;
+                        } catch (e) {
+                            errorMessage = errorText || errorMessage;
+                        }
+                        throw new Error(errorMessage);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (!result.data) {
+                        throw new Error('Invalid response format');
+                    }
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        throw new Error('Request timed out after 50 seconds');
+                    }
+                    throw error;
                 }
 
                 // Show analysis results
