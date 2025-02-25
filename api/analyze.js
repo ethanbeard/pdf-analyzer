@@ -4,54 +4,29 @@ const path = require('path');
 const axios = require('axios');
 require('dotenv').config();
 
-// Helper function to extract summary and structured data
+// Helper function to parse and validate the JSON response
 function parseResponse(text) {
-    // Extract summary (text between '**Summary:**' and '**Structured Data:**')
-    const summaryMatch = text.match(/\*\*Summary:\*\*\s+([^*]+)\s+\*\*Structured Data:\*\*/i);
-    const summary = summaryMatch ? summaryMatch[1].trim() : '';
-
-    // Find the table in the text
-    const tableMatch = text.match(/\|([^\n]+\|)+\n\s*\|([-:\|\s]+\|)+\n((\|[^\n]+\|)+\n?)+/);
-    if (!tableMatch) return { summary, headers: [], rows: [] };
-
-    // Split into lines and clean up
-    const lines = tableMatch[0].split('\n')
-        .filter(line => line.trim())
-        .map(line => line.trim());
+    console.log('Parsing response text:', text);
     
-    // Parse headers
-    const headers = lines[0]
-        .split('|')
-        .filter(cell => cell.trim())
-        .map(cell => cell.trim());
-
-    // Parse rows (skip header and separator lines)
-    const rows = lines.slice(2)
-        .filter(line => line.trim())
-        .map(line => 
-            line
-                .split('|')
-                .filter(cell => cell.trim())
-                .map(cell => {
-                    // Clean up the cell value
-                    let value = cell.trim();
-                    // Remove 'USD' prefix from prices
-                    if (value.startsWith('USD')) {
-                        value = value.replace('USD', '').trim();
-                    }
-                    // Remove dollar sign and convert to number for price
-                    if (value.startsWith('$')) {
-                        value = value.replace('$', '').replace(',', '');
-                        // Handle 'each' case
-                        if (value.includes('(each)')) {
-                            value = value.replace('(each)', '').trim();
-                        }
-                    }
-                    return value;
-                })
-        );
-
-    return { summary, headers, rows };
+    try {
+        // Try to parse the response as JSON
+        const data = JSON.parse(text);
+        
+        // Validate the required structure
+        if (!data.summary || !Array.isArray(data.tables)) {
+            console.log('Invalid JSON structure - missing required fields');
+            return { summary: '', tables: [] };
+        }
+        
+        return {
+            summary: data.summary,
+            tables: data.tables,
+            otherStructuredData: data.otherStructuredData || {}
+        };
+    } catch (error) {
+        console.error('Failed to parse JSON response:', error);
+        return { summary: '', tables: [], otherStructuredData: {} };
+    }
 }
 
 // Configure multer for memory storage
@@ -129,7 +104,11 @@ module.exports = async (req, res) => {
         const geminiPayload = {
             contents: [{
                 parts: [
-                    { text: `Please analyze this PDF and return a JSON response with the following structure:
+                    { text: `Analyze this PDF and return a valid JSON object. Follow these strict requirements:
+
+1. The response MUST be a single JSON object, parseable by JSON.parse().
+2. Do not include any text before or after the JSON.
+3. Use this exact structure:
 {
     "summary": "A brief summary of the document",
     "tables": [
@@ -145,17 +124,15 @@ module.exports = async (req, res) => {
         "key_figures": {
             "description": "Any important numerical data or statistics",
             "values": {"label1": "value1", ...}
-        },
-        "lists": [
-            {
-                "title": "Title of the list",
-                "items": ["item1", "item2", ...]
-            }
-        ]
+        }
     }
 }
 
-Please ensure all tables are properly structured with consistent columns and data types. If no tables are found, return an empty array for 'tables'.` },
+Important:
+- For price values, use consistent number formatting (e.g., "1000.50" not "$1,000.50")
+- If no tables found, use an empty array for "tables"
+- All fields shown are required, do not omit any
+- Do not add any markdown formatting or explanatory text` },
                     { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                 ]
             }],
@@ -184,54 +161,11 @@ Please ensure all tables are properly structured with consistent columns and dat
             // Parse the response text and extract data
             const parsedData = parseResponse(responseText);
             
-            // Calculate total value of artwork
-            let totalArtworkValue = 0;
-            parsedData.rows.forEach(row => {
-                // Find the price column index
-                const priceIndex = parsedData.headers.findIndex(h => h.toLowerCase().includes('price'));
-                if (priceIndex !== -1) {
-                    const price = parseFloat(row[priceIndex]);
-                    if (!isNaN(price)) {
-                        totalArtworkValue += price;
-                    }
-                }
-            });
-
-            // Calculate analysis pricing
-            const baseFee = 1.00;
-            const perRecordFee = 0.10;
-            const numRecords = parsedData.rows.length;
-            const analysisPrice = baseFee + (numRecords * perRecordFee);
-
-            // Create the structured response
+            // Create the structured response using the parsed data directly
             const structuredData = {
-                tables: [{
-                    title: 'Artwork Inventory',
-                    description: 'Detailed list of artworks with their specifications and pricing',
-                    headers: parsedData.headers,
-                    rows: parsedData.rows.map(row => 
-                        row.map((cell, i) => 
-                            // Format price columns with dollar sign and commas
-                            parsedData.headers[i].toLowerCase().includes('price') 
-                                ? `$${parseFloat(cell).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                                : cell
-                        )
-                    ),
-                    location: 'Document body'
-                }],
-                otherStructuredData: {
-                    key_figures: {
-                        description: 'Analysis Summary',
-                        values: {
-                            'Total Artworks': numRecords.toString(),
-                            'Total Artwork Value': `$${totalArtworkValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                            'Analysis Base Fee': `$${baseFee.toFixed(2)}`,
-                            'Per Record Fee': `$${perRecordFee.toFixed(2)}`,
-                            'Total Analysis Cost': `$${analysisPrice.toFixed(2)}`
-                        }
-                    },
-                    lists: []
-                }
+                summary: parsedData.summary,
+                tables: parsedData.tables,
+                otherStructuredData: parsedData.otherStructuredData
             };
 
             console.log('Processed data:', structuredData);
