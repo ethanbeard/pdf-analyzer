@@ -104,35 +104,35 @@ module.exports = async (req, res) => {
         const geminiPayload = {
             contents: [{
                 parts: [
-                    { text: `Analyze this PDF and return a valid JSON object. Follow these strict requirements:
+                    { text: `Extract data from this PDF and return it in this EXACT JSON format (no other text, just pure JSON):
 
-1. The response MUST be a single JSON object, parseable by JSON.parse().
-2. Do not include any text before or after the JSON.
-3. Use this exact structure:
 {
-    "summary": "A brief summary of the document",
+    "summary": "Brief document summary",
+    "field_info": {
+        "total_fields": 123,  // Total number of unique fields/columns found
+        "field_names": ["Field1", "Field2", ...],  // List of all unique field names
+        "total_records": 456  // Total number of records/rows found
+    },
     "tables": [
         {
-            "title": "Title or caption of the table",
-            "description": "A brief description of what this table represents",
-            "headers": ["Column1", "Column2", ...],
-            "rows": [["value1", "value2", ...], ...],
-            "location": "Page or section where this table appears"
+            "title": "Table name/title",
+            "field_count": 789,  // Number of fields in this table
+            "record_count": 101,  // Number of records in this table
+            "headers": ["Column1", "Column2"],  // Column names
+            "rows": [
+                ["value1", "value2"],  // Each row's values
+                ["value3", "value4"]
+            ]
         }
-    ],
-    "otherStructuredData": {
-        "key_figures": {
-            "description": "Any important numerical data or statistics",
-            "values": {"label1": "value1", ...}
-        }
-    }
+    ]
 }
 
-Important:
-- For price values, use consistent number formatting (e.g., "1000.50" not "$1,000.50")
-- If no tables found, use an empty array for "tables"
-- All fields shown are required, do not omit any
-- Do not add any markdown formatting or explanatory text` },
+Rules:
+1. Response must be ONLY the JSON object - no markdown, no extra text
+2. Use actual numbers for counts, not placeholders
+3. Include ALL fields shown in the structure
+4. Keep all text values as raw strings - don't format numbers/currencies
+5. If no tables found, use empty array for "tables"` },
                     { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                 ]
             }],
