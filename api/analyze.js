@@ -107,29 +107,47 @@ module.exports = async (req, res) => {
         const geminiPayload = {
             contents: [{
                 role: "user",
-                parts: [{ text: `IMPORTANT: You are a JSON extraction API endpoint. Your response must be a single JSON object with no other text.
+                parts: [{ text: `Extract artwork data from this PDF and return ONLY this exact JSON structure, no other text:
 
-Example response format:
 {
-    "summary": "Example summary",
-    "tables": [{
-        "headers": ["Title", "Year", "Medium", "Price"],
-        "rows": [
-            ["Artwork 1", "2018", "Oil on canvas", "1000"],
-            ["Artwork 2", "2019", "Sculpture", "2000"]
+    "summary": "Brief summary of the catalog",
+    "artworks": [
+        {
+            "title": "Untitled (Block party)",
+            "artist": "Sadie Barnette",
+            "year": "2018",
+            "medium": "Archival pigment print and Swarovski crystals",
+            "dimensions_unframed": "40.25 x 60 in.",
+            "dimensions_framed": "41 x 60.25 in.",
+            "edition": null,
+            "inventory_number": "SB127",
+            "price": "15000.00"
+        }
+    ],
+    "metadata": {
+        "total_artworks": 1,
+        "fields": [
+            "title",
+            "artist",
+            "year",
+            "medium",
+            "dimensions_unframed",
+            "dimensions_framed",
+            "edition",
+            "inventory_number",
+            "price"
         ]
-    }]
+    }
 }
 
 Rules:
-1. Start response with {
-2. End response with }
-3. No text before or after the JSON
-4. No markdown formatting
-5. No **bold** or other formatting
-6. Keep numbers as plain strings without currency symbols
-
-Now process this PDF and return a JSON object:` },
+1. Return ONLY valid JSON - no markdown, no formatting, no extra text
+2. Include ALL artworks found in the PDF
+3. Use exact field names shown above
+4. Use null for missing values
+5. Remove currency symbols and commas from prices
+6. Keep numbers as strings to preserve precision
+` },
                     { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                 ]
             }],
@@ -189,20 +207,34 @@ Now process this PDF and return a JSON object:` },
                 // Try to parse the JSON
                 const parsedData = JSON.parse(jsonText);
                 
-                // Create the structured response
-                const structuredData = {
-                    summary: parsedData.summary || '',
-                    tables: Array.isArray(parsedData.tables) ? parsedData.tables : []
-                };
+                // Validate required fields
+                if (!parsedData.summary || !Array.isArray(parsedData.artworks) || !parsedData.metadata) {
+                    throw new Error('Invalid response format - missing required fields');
+                }
 
-                // Validate table structure
-                structuredData.tables = structuredData.tables.map(table => ({
-                    headers: Array.isArray(table.headers) ? table.headers : [],
-                    rows: Array.isArray(table.rows) ? table.rows : []
+                // Validate metadata
+                if (!Array.isArray(parsedData.metadata.fields)) {
+                    throw new Error('Invalid metadata format');
+                }
+
+                // Validate each artwork
+                parsedData.artworks = parsedData.artworks.map(artwork => ({
+                    title: artwork.title || null,
+                    artist: artwork.artist || null,
+                    year: artwork.year || null,
+                    medium: artwork.medium || null,
+                    dimensions_unframed: artwork.dimensions_unframed || null,
+                    dimensions_framed: artwork.dimensions_framed || null,
+                    edition: artwork.edition || null,
+                    inventory_number: artwork.inventory_number || null,
+                    price: artwork.price ? artwork.price.replace(/[$,]/g, '') : null
                 }));
 
-                console.log('Successfully processed data:', structuredData);
-                return structuredData;
+                // Update total artworks count
+                parsedData.metadata.total_artworks = parsedData.artworks.length;
+
+                console.log('Successfully processed data:', parsedData);
+                return parsedData;
 
             } catch (error) {
                 console.error('Error processing response:', error.message);
