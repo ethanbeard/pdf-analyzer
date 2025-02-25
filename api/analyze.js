@@ -104,48 +104,29 @@ module.exports = async (req, res) => {
         const geminiPayload = {
             contents: [{
                 role: "user",
-                parts: [{ text: `You are a JSON data extraction API. You must return ONLY valid JSON, no other text.
+                parts: [{ text: `IMPORTANT: You are a JSON extraction API endpoint. Your response must be a single JSON object with no other text.
 
-Function: extract_pdf_data(pdf_content)
-Return type: application/json
-Schema:
+Example response format:
 {
-    "summary": string,
-    "field_info": {
-        "total_fields": number,
-        "field_names": string[],
-        "total_records": number
-    },
+    "summary": "Example summary",
     "tables": [{
-        "title": string,
-        "field_count": number,
-        "record_count": number,
-        "headers": string[],
-        "rows": any[][]
+        "headers": ["Title", "Year", "Medium", "Price"],
+        "rows": [
+            ["Artwork 1", "2018", "Oil on canvas", "1000"],
+            ["Artwork 2", "2019", "Sculpture", "2000"]
+        ]
     }]
 }
 
-Validation:
-- Response must parse with JSON.parse()
-- No text outside JSON object
-- No comments in JSON
-- No markdown formatting
+Rules:
+1. Start response with {
+2. End response with }
+3. No text before or after the JSON
+4. No markdown formatting
+5. No **bold** or other formatting
+6. Keep numbers as plain strings without currency symbols
 
-Input PDF follows below:
-` }]
-            }, {
-                role: "model",
-                parts: [{ text: `I understand. I will:
-1. Extract data from the PDF
-2. Return only a JSON object matching the schema
-3. Include no text outside the JSON
-4. Use no markdown or formatting
-5. Ensure the response is valid JSON
-
-Proceeding with extraction...` }]
-            }, {
-                role: "user",
-                parts: [{ text: `Correct. Now process this PDF and return ONLY the JSON response:` },
+Now process this PDF and return a JSON object:` },
                     { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                 ]
             }],
@@ -169,21 +150,55 @@ Proceeding with extraction...` }]
 
             console.log('Received response from Gemini API:', JSON.stringify(geminiResponse.data, null, 2));
 
-            // Extract text from the response
-            const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
-            console.log('Extracted text:', responseText);
+            try {
+                // Extract text from the response
+                const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
+                console.log('Raw response text:', responseText);
 
-            // Parse the response text and extract data
-            const parsedData = parseResponse(responseText);
-            
-            // Create the structured response using the parsed data directly
-            const structuredData = {
-                summary: parsedData.summary,
-                tables: parsedData.tables,
-                otherStructuredData: parsedData.otherStructuredData
-            };
+                // Try to extract JSON from the response text
+                let jsonText = responseText;
+                
+                // If response contains markdown or other text, try to extract JSON
+                if (!jsonText.trim().startsWith('{')) {
+                    const jsonMatch = responseText.match(/\{[\s\S]*\}/);  // Match everything between { and }
+                    if (jsonMatch) {
+                        jsonText = jsonMatch[0];
+                        console.log('Extracted JSON from response:', jsonText);
+                    } else {
+                        throw new Error('No JSON object found in response');
+                    }
+                }
 
-            console.log('Processed data:', structuredData);
+                // Try to parse the JSON
+                const parsedData = JSON.parse(jsonText);
+                
+                // Create the structured response
+                const structuredData = {
+                    summary: parsedData.summary || '',
+                    tables: Array.isArray(parsedData.tables) ? parsedData.tables : []
+                };
+
+                // Validate table structure
+                structuredData.tables = structuredData.tables.map(table => ({
+                    headers: Array.isArray(table.headers) ? table.headers : [],
+                    rows: Array.isArray(table.rows) ? table.rows : []
+                }));
+
+                console.log('Successfully processed data:', structuredData);
+                return structuredData;
+
+            } catch (error) {
+                console.error('Error processing response:', error.message);
+                if (error.message.includes('JSON')) {
+                    console.log('Invalid JSON format received');
+                }
+                
+                // Return empty structure
+                return {
+                    summary: '',
+                    tables: []
+                };
+            }
 
             // Optional: Store in Redis here if configured
             // const redisKey = `analysis:${sessionId}`;
