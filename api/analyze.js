@@ -169,7 +169,7 @@ Your response must start with { and end with } and be parseable by JSON.parse().
             console.log('Sending request to Gemini API:', JSON.stringify(geminiPayload, null, 2));
 
             // Call Gemini API with timeout and better error handling
-            const geminiResponse = await axios.post(`${apiEndpoint}?key=${apiKey}`, geminiPayload, {
+            const geminiResponse = await axios.post(`${apiEndpoint}?key=${apiKey}`, extractionPayload, {
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -245,10 +245,17 @@ Your response must start with { and end with } and be parseable by JSON.parse().
                 // Now get a summary
                 const summaryPayload = {
                     contents: [{
+                        role: "system",
+                        parts: [{ text: `You are a catalog summarizer. Write a brief, factual summary focusing on artwork types and materials. Do not use markdown formatting or special characters.` }]
+                    }, {
                         role: "user",
                         parts: [{ text: `Write a brief 1-2 sentence summary of this art catalog, focusing on the types of artwork and materials used. Be concise and factual:` },
                             { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                         ]
+                    }],
+                    safetySettings: [{
+                        category: "HARM_CATEGORY_DANGEROUS",
+                        threshold: "BLOCK_NONE"
                     }],
                     generationConfig: {
                         temperature: 0,
