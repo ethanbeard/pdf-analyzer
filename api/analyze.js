@@ -104,52 +104,62 @@ module.exports = async (req, res) => {
         // Prepare request to Gemini API
         const apiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
         
+        // Define expected fields for validation
+        const expectedFields = [
+            'title',
+            'artist',
+            'year',
+            'medium',
+            'dimensions_unframed',
+            'dimensions_framed',
+            'edition',
+            'inventory_number',
+            'price'
+        ];
+
         const geminiPayload = {
             contents: [{
+                role: "system",
+                parts: [{ text: `You are a JSON extraction API. You must output ONLY valid JSON.
+Do not include ANY other text, markdown, or formatting in your response.
+Your response must start with { and end with } and be parseable by JSON.parse().
+` }]
+            }, {
                 role: "user",
-                parts: [{ text: `Extract artwork data from this PDF and return ONLY this exact JSON structure, no other text:
-
+                parts: [{ text: `Return ONLY this JSON structure with no other text:
 {
-    "summary": "Brief summary of the catalog",
-    "artworks": [
-        {
-            "title": "Untitled (Block party)",
-            "artist": "Sadie Barnette",
-            "year": "2018",
-            "medium": "Archival pigment print and Swarovski crystals",
-            "dimensions_unframed": "40.25 x 60 in.",
-            "dimensions_framed": "41 x 60.25 in.",
-            "edition": null,
-            "inventory_number": "SB127",
-            "price": "15000.00"
-        }
-    ],
-    "metadata": {
-        "total_artworks": 1,
-        "fields": [
-            "title",
-            "artist",
-            "year",
-            "medium",
-            "dimensions_unframed",
-            "dimensions_framed",
-            "edition",
-            "inventory_number",
-            "price"
-        ]
-    }
+  "summary": string,  // Brief catalog summary
+  "artworks": [{
+    "title": string,         // e.g. "Untitled (Block party)"
+    "artist": string,        // Always "Sadie Barnette"
+    "year": string,         // e.g. "2018"
+    "medium": string,       // e.g. "Archival pigment print"
+    "dimensions_unframed": string,  // e.g. "40.25 x 60 in."
+    "dimensions_framed": string,    // e.g. "41 x 60.25 in."
+    "edition": string|null,  // e.g. "1" or null
+    "inventory_number": string,     // e.g. "SB127"
+    "price": string         // e.g. "15000.00" (no $ or ,)
+  }],
+  "metadata": {
+    "total_artworks": number,
+    "fields": ["title", "artist", "year", "medium", "dimensions_unframed", "dimensions_framed", "edition", "inventory_number", "price"]
+  }
 }
 
 Rules:
-1. Return ONLY valid JSON - no markdown, no formatting, no extra text
-2. Include ALL artworks found in the PDF
-3. Use exact field names shown above
-4. Use null for missing values
-5. Remove currency symbols and commas from prices
-6. Keep numbers as strings to preserve precision
-` },
+1. Output ONLY valid JSON - no other text
+2. Start with { and end with }
+3. Use exact field names shown
+4. Remove $ and , from prices
+5. Use null for missing values
+
+Process this PDF:` },
                     { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                 ]
+            }],
+            safetySettings: [{
+                category: "HARM_CATEGORY_DANGEROUS",
+                threshold: "BLOCK_NONE"
             }],
             generationConfig: {
                 temperature: 0,
@@ -190,48 +200,60 @@ Rules:
                 const responseText = geminiResponse.data.candidates[0].content.parts[0].text;
                 console.log('Raw response text:', responseText);
 
-                // Try to extract JSON from the response text
-                let jsonText = responseText;
-                
-                // If response contains markdown or other text, try to extract JSON
-                if (!jsonText.trim().startsWith('{')) {
-                    const jsonMatch = responseText.match(/\{[\s\S]*\}/);  // Match everything between { and }
-                    if (jsonMatch) {
-                        jsonText = jsonMatch[0];
-                        console.log('Extracted JSON from response:', jsonText);
-                    } else {
-                        throw new Error('No JSON object found in response');
-                    }
+                // Remove any non-JSON content
+                const jsonMatch = responseText.match(/^\s*\{[\s\S]*\}\s*$/);
+                if (!jsonMatch) {
+                    throw new Error('Response contains non-JSON content');
                 }
 
                 // Try to parse the JSON
-                const parsedData = JSON.parse(jsonText);
+                const parsedData = JSON.parse(jsonMatch[0]);
                 
                 // Validate required fields
-                if (!parsedData.summary || !Array.isArray(parsedData.artworks) || !parsedData.metadata) {
-                    throw new Error('Invalid response format - missing required fields');
+                if (typeof parsedData.summary !== 'string') {
+                    throw new Error('Summary must be a string');
+                }
+                if (!Array.isArray(parsedData.artworks)) {
+                    throw new Error('Artworks must be an array');
+                }
+                if (!parsedData.metadata || typeof parsedData.metadata !== 'object') {
+                    throw new Error('Metadata must be an object');
                 }
 
                 // Validate metadata
                 if (!Array.isArray(parsedData.metadata.fields)) {
-                    throw new Error('Invalid metadata format');
+                    throw new Error('Metadata fields must be an array');
+                }
+                if (typeof parsedData.metadata.total_artworks !== 'number') {
+                    throw new Error('Total artworks must be a number');
                 }
 
-                // Validate each artwork
-                parsedData.artworks = parsedData.artworks.map(artwork => ({
-                    title: artwork.title || null,
-                    artist: artwork.artist || null,
-                    year: artwork.year || null,
-                    medium: artwork.medium || null,
-                    dimensions_unframed: artwork.dimensions_unframed || null,
-                    dimensions_framed: artwork.dimensions_framed || null,
-                    edition: artwork.edition || null,
-                    inventory_number: artwork.inventory_number || null,
-                    price: artwork.price ? artwork.price.replace(/[$,]/g, '') : null
-                }));
+                // Validate each artwork has required fields
+                parsedData.artworks = parsedData.artworks.map((artwork, index) => {
+                    // Validate all required fields exist
+                    for (const field of expectedFields) {
+                        if (!(field in artwork)) {
+                            throw new Error(`Artwork ${index} missing required field: ${field}`);
+                        }
+                    }
+
+                    // Clean and validate fields
+                    return {
+                        title: String(artwork.title || ''),
+                        artist: String(artwork.artist || 'Sadie Barnette'),
+                        year: String(artwork.year || ''),
+                        medium: String(artwork.medium || ''),
+                        dimensions_unframed: String(artwork.dimensions_unframed || ''),
+                        dimensions_framed: String(artwork.dimensions_framed || ''),
+                        edition: artwork.edition === null ? null : String(artwork.edition),
+                        inventory_number: String(artwork.inventory_number || ''),
+                        price: artwork.price ? String(artwork.price).replace(/[$,]/g, '') : null
+                    };
+                });
 
                 // Update total artworks count
                 parsedData.metadata.total_artworks = parsedData.artworks.length;
+                parsedData.metadata.fields = expectedFields;
 
                 console.log('Successfully processed data:', parsedData);
                 return parsedData;
