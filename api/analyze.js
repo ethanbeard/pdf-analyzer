@@ -103,42 +103,57 @@ module.exports = async (req, res) => {
         
         const geminiPayload = {
             contents: [{
-                parts: [
-                    { text: `Extract data from this PDF and return it in this EXACT JSON format (no other text, just pure JSON):
+                role: "user",
+                parts: [{ text: `You are a JSON data extraction API. You must return ONLY valid JSON, no other text.
 
+Function: extract_pdf_data(pdf_content)
+Return type: application/json
+Schema:
 {
-    "summary": "Brief document summary",
+    "summary": string,
     "field_info": {
-        "total_fields": 123,  // Total number of unique fields/columns found
-        "field_names": ["Field1", "Field2", ...],  // List of all unique field names
-        "total_records": 456  // Total number of records/rows found
+        "total_fields": number,
+        "field_names": string[],
+        "total_records": number
     },
-    "tables": [
-        {
-            "title": "Table name/title",
-            "field_count": 789,  // Number of fields in this table
-            "record_count": 101,  // Number of records in this table
-            "headers": ["Column1", "Column2"],  // Column names
-            "rows": [
-                ["value1", "value2"],  // Each row's values
-                ["value3", "value4"]
-            ]
-        }
-    ]
+    "tables": [{
+        "title": string,
+        "field_count": number,
+        "record_count": number,
+        "headers": string[],
+        "rows": any[][]
+    }]
 }
 
-Rules:
-1. Response must be ONLY the JSON object - no markdown, no extra text
-2. Use actual numbers for counts, not placeholders
-3. Include ALL fields shown in the structure
-4. Keep all text values as raw strings - don't format numbers/currencies
-5. If no tables found, use empty array for "tables"` },
+Validation:
+- Response must parse with JSON.parse()
+- No text outside JSON object
+- No comments in JSON
+- No markdown formatting
+
+Input PDF follows below:
+` }]
+            }, {
+                role: "model",
+                parts: [{ text: `I understand. I will:
+1. Extract data from the PDF
+2. Return only a JSON object matching the schema
+3. Include no text outside the JSON
+4. Use no markdown or formatting
+5. Ensure the response is valid JSON
+
+Proceeding with extraction...` }]
+            }, {
+                role: "user",
+                parts: [{ text: `Correct. Now process this PDF and return ONLY the JSON response:` },
                     { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
                 ]
             }],
             generationConfig: {
-                temperature: 0.2,
-                maxOutputTokens: 1024
+                temperature: 0,
+                maxOutputTokens: 2048,
+                topK: 1,
+                topP: 0
             }
         };
 
